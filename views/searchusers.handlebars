@@ -1,0 +1,8 @@
+<h1>Search Users</h1>
+{{#if error}} <span class="text-danger">{{error}}</span> {{/if}}
+<form class="form-inline" method="post" action="/user/search">
+    <div class="form-group">
+        <input type="text" name="id" id="id" class="form-control" placeholder="Search Users By ID">
+    </div>
+    <button type="submit" class="btn btn-primary">Search</button>
+</form>
