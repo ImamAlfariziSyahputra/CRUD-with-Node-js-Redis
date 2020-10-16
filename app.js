@@ -1,8 +1,5 @@
 const express = require('express')
-const exphbs = require('express-handlebars')
-const path = require('path')
 const bodyParser = require('body-parser')
-const methodOverride = require('method-override')
 const redis = require('redis')
 
 // Redis Client
@@ -16,43 +13,53 @@ const port = 3000
 
 const app = express()
 
-app.engine('handlebars', exphbs({defaultLayout:'main'}))
-app.set('view engine', 'handlebars')
-
 app.use(bodyParser.json())
 app.use(bodyParser.urlencoded({extended:false}))
 
-app.use(methodOverride('_method'))
+app.get('/user', function(req, res){
+    let return_dataset = []
 
-app.get('/', function(req, res, next){
-    res.render('searchusers')
+    client.keys('*', (err, id) => {
+        let multi = client.multi()
+        let keys = Object.keys(id)
+        let i = 0
+
+        keys.forEach( (l) => {
+            client.hgetall(id[l], (err, obj) => {
+                i++
+                if (err) {
+                    console.log(err)
+                }else {
+                    temp_data = {'id':id[l],'data':obj}
+                    return_dataset.push(temp_data)
+                }
+
+                if (i == keys.length) {
+                    res.send({user:return_dataset})
+                }
+            })
+        })
+    })
 })
 
-// Search
-app.post('/user/search', function(req, res, next){
-    let {id} = req.body
+// Get By ID
+app.get('/user/:id', function(req, res){
+    let {id} = req.params
 
     client.hgetall(id, function(err, obj){
         if(!obj){
-            res.render('searchusers', {
-                error: `User does not exist`
-            })
+            res.send(`User doesn't exist`)
         }else {
             obj.id = id
-            res.render('details', {
+            res.send({
                 user: obj
             })
         }
     })
 })
 
-// Create
-app.get('/user/add', function(req,res,next){
-    res.render('adduser')
-})
-
 // Add
-app.post('/user/add', function(req,res,next){
+app.post('/user', function(req,res){
     let {id} = req.body
     let {first_name} = req.body
     let {last_name} = req.body
@@ -69,24 +76,15 @@ app.post('/user/add', function(req,res,next){
             console.log(err)
         }
         console.log(reply)
-        res.redirect('/')
-    })
-})
 
-// edit
-app.get('/user/edit/:id', function(req,res,next){
-    let {id} = req.params
+        // response = client.hgetall(id)
 
-    client.hgetall(id, function(err, obj){
-        obj.id = id
-        res.render('updateuser', {
-            user: obj
-        })
+        res.json(`Add OK`)
     })
 })
 
 // Update
-app.put('/user/update', function(req, res, next){
+app.put('/user/:id', function(req, res){
     let {id} = req.body
     let {first_name} = req.body
     let {last_name} = req.body
@@ -103,14 +101,14 @@ app.put('/user/update', function(req, res, next){
             console.log(err)
         }
         console.log(reply)
-        res.redirect('/')
+        res.send('Update OK')
     })
 })
 
 // Delete
-app.delete('/user/delete/:id', function(req,res,next) {
+app.delete('/user/:id', function(req,res) {
     client.del(req.params.id)
-    res.redirect('/')
+    res.send('Delete OK')
 })
 
 app.listen(port, function(){
