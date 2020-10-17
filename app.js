@@ -2,7 +2,6 @@ const express = require('express')
 const bodyParser = require('body-parser')
 const redis = require('redis')
 
-// Redis Client
 let client = redis.createClient()
 
 client.on('connect', function(){
@@ -16,29 +15,14 @@ const app = express()
 app.use(bodyParser.json())
 app.use(bodyParser.urlencoded({extended:false}))
 
+// Get All Data
 app.get('/user', function(req, res){
-    let return_dataset = []
+    key = 'user'
 
-    client.keys('*', (err, id) => {
-        let multi = client.multi()
-        let keys = Object.keys(id)
-        let i = 0
+    client.get(key, async function(err, obj){
+        data = JSON.parse(obj)
 
-        keys.forEach( (l) => {
-            client.hgetall(id[l], (err, obj) => {
-                i++
-                if (err) {
-                    console.log(err)
-                }else {
-                    temp_data = {'id':id[l],'data':obj}
-                    return_dataset.push(temp_data)
-                }
-
-                if (i == keys.length) {
-                    res.send({user:return_dataset})
-                }
-            })
-        })
+        res.send(data)
     })
 })
 
@@ -46,69 +30,132 @@ app.get('/user', function(req, res){
 app.get('/user/:id', function(req, res){
     let {id} = req.params
 
-    client.hgetall(id, function(err, obj){
-        if(!obj){
-            res.send(`User doesn't exist`)
-        }else {
-            obj.id = id
-            res.send({
-                user: obj
-            })
+    client.get('user', function(err, obj){
+        // Convert to String
+        data = JSON.parse(obj)
+
+        for(var i=0; i<Object.keys(data).length; i++) {
+            if (data[i].id == id) {
+                res.send(data[i])
+            }
+            // else{
+            //     console.log('User Not Found!')
+            // }
         }
     })
 })
 
 // Add
 app.post('/user', function(req,res){
+    let key = 'user'
     let {id} = req.body
-    let {first_name} = req.body
-    let {last_name} = req.body
-    let {email} = req.body
-    let {phone} = req.body
+    let {name} = req.body
+    let {age} = req.body
 
-    client.hmset(id, [
-        'first_name', first_name,
-        'last_name', last_name,
-        'email', email,
-        'phone', phone,
-    ], function(err, reply){
-        if(err) {
-            console.log(err)
+    let old = []
+
+    client.get(key, async function(err, obj){
+
+        let data = await JSON.parse(obj)
+        // console.log(data)
+
+        if(!data) {
+            // kalo data lama gak ada jangan jalanin else
+        }else {
+            // Masukin data lama ke variable old
+            old = data
         }
-        console.log(reply)
 
-        // response = client.hgetall(id)
+        let newData = {
+            'id': id,
+            'name': name,
+            'age': age,
+        }
+        
+        // Push data baru ke data yang sudah ada
+        old.push(newData)
 
-        res.json(`Add OK`)
+        // Convert Json to String
+        let jsonToStr = JSON.stringify(old)
+
+        client.set(key, jsonToStr, function(err, reply){
+            if(err) {
+                console.log(err)
+            }
+            console.log(reply)
+
+            res.send(`Add OK`)
+        })
     })
 })
 
 // Update
-app.put('/user/:id', function(req, res){
+app.put('/user/:param', function(req, res){
+    let key = 'user'
+    let {param} = req.params
     let {id} = req.body
-    let {first_name} = req.body
-    let {last_name} = req.body
-    let {email} = req.body
-    let {phone} = req.body
+    let {name} = req.body
+    let {age} = req.body
 
-    client.hmset(id, [
-        'first_name', first_name,
-        'last_name', last_name,
-        'email', email,
-        'phone', phone,
-    ], function(err, reply){
-        if(err) {
-            console.log(err)
+    client.get(key, async function(err, obj){
+        // Convert String to JSON
+        let data = await JSON.parse(obj)
+
+        for(var i=0; i<Object.keys(data).length; i++) {
+            if (data[i].id == param) {
+
+                // Override data lama dengan data update
+                data[i].id = id
+                data[i].name = name
+                data[i].age = age
+            }
+            else{
+                // console.log(data[i].name)
+                // console.log('User Not Found!')
+            }
         }
-        console.log(reply)
-        res.send('Update OK')
+
+        // Convert JSON to String
+        let jsonToStr = JSON.stringify(data)
+
+        client.set(key, jsonToStr, function(err, reply){
+            if(err) {
+                console.log(err)
+            }
+            console.log(reply)
+
+            res.send(`Update OK`)
+        })
     })
 })
 
 // Delete
 app.delete('/user/:id', function(req,res) {
-    client.del(req.params.id)
-    res.send('Delete OK')
+    let key = 'user'
+    let {id} = req.params
+
+    client.get(key, async function(err, obj){
+        let data = await JSON.parse(obj)
+
+        for(var i=0; i<Object.keys(data).length; i++) {
+            if (data[i].id == id) {
+                data.splice([i], 1)
+                // console.log(data)
+            }
+        }
+
+        // Convert JSON to String
+        let jsonToStr = JSON.stringify(data)
+
+        client.set(key, jsonToStr, function(err, reply){
+            if(err) {
+                console.log(err)
+            }
+            console.log(reply)
+
+            res.send(`Delete OK`)
+        })
+    })
 })
 
 app.listen(port, function(){
